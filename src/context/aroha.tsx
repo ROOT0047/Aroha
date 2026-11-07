@@ -9,6 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
 import { totalXp, type XpInput } from "@/lib/xp";
 
@@ -606,7 +607,7 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
         Pick<ScheduleBlock, "title" | "description" | "startTime" | "endTime" | "priority" | "color">
       > & { date?: string };
     }) => {
-      const row: Record<string, string> = {};
+      const row: Database["public"]["Tables"]["time_blocks"]["Update"] = {};
       if (patch.title !== undefined) row.title = patch.title;
       if (patch.description !== undefined) row.description = patch.description;
       if (patch.startTime !== undefined) row.start_time = patch.startTime;
