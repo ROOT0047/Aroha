@@ -29,7 +29,6 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SyncRouteImport } from './routes/sync'
 import { Route as TimeBlockingAppRouteImport } from './routes/time-blocking-app'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
@@ -135,11 +134,6 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SyncRoute = SyncRouteImport.update({
   id: '/sync',
   path: '/sync',
@@ -182,7 +176,6 @@ export interface FileRoutesByFullPath {
   '/reminders': typeof RemindersRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
-  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sync': typeof SyncRoute
   '/time-blocking-app': typeof TimeBlockingAppRoute
   '/profile/edit': typeof ProfileEditRoute
@@ -209,7 +202,6 @@ export interface FileRoutesByTo {
   '/reminders': typeof RemindersRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
-  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sync': typeof SyncRoute
   '/time-blocking-app': typeof TimeBlockingAppRoute
   '/profile/edit': typeof ProfileEditRoute
@@ -237,7 +229,6 @@ export interface FileRoutesById {
   '/reminders': typeof RemindersRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
-  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sync': typeof SyncRoute
   '/time-blocking-app': typeof TimeBlockingAppRoute
   '/profile/edit': typeof ProfileEditRoute
@@ -266,7 +257,6 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/schedule'
     | '/settings'
-    | '/sitemap.xml'
     | '/sync'
     | '/time-blocking-app'
     | '/profile/edit'
@@ -293,7 +283,6 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/schedule'
     | '/settings'
-    | '/sitemap.xml'
     | '/sync'
     | '/time-blocking-app'
     | '/profile/edit'
@@ -320,7 +309,6 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/schedule'
     | '/settings'
-    | '/sitemap.xml'
     | '/sync'
     | '/time-blocking-app'
     | '/profile/edit'
@@ -348,7 +336,6 @@ export interface RootRouteChildren {
   RemindersRoute: typeof RemindersRoute
   ScheduleRoute: typeof ScheduleRoute
   SettingsRoute: typeof SettingsRoute
-  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SyncRoute: typeof SyncRoute
   TimeBlockingAppRoute: typeof TimeBlockingAppRoute
   ProfileEditRoute: typeof ProfileEditRoute
@@ -497,13 +484,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/sync': {
       id: '/sync'
       path: '/sync'
@@ -556,7 +536,6 @@ const rootRouteChildren: RootRouteChildren = {
   RemindersRoute: RemindersRoute,
   ScheduleRoute: ScheduleRoute,
   SettingsRoute: SettingsRoute,
-  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SyncRoute: SyncRoute,
   TimeBlockingAppRoute: TimeBlockingAppRoute,
   ProfileEditRoute: ProfileEditRoute,
@@ -565,13 +544,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

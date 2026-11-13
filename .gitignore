@@ -34,3 +34,5 @@ dist-ssr
 .env
 apps/*/.env
 apps/*/dist
+
+packages/*/dist
