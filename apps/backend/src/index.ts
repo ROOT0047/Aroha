@@ -6,6 +6,7 @@ import { env } from "./config/env";
 import { healthRouter } from "./routes/health";
 import { coachRouter } from "./routes/coach";
 import { reviewRouter } from "./routes/review";
+import { authRouter } from "./routes/auth";
 
 const app = new Hono();
 
@@ -30,6 +31,7 @@ app.use(
 
 // Mount API routes
 app.route("/api/health", healthRouter);
+app.route("/api/auth", authRouter);
 app.route("/api/coach", coachRouter);
 app.route("/api/review", reviewRouter);
 
@@ -38,7 +40,7 @@ app.get("/", (c) => {
   return c.json({
     service: "AROHA Backend API",
     status: "running",
-    endpoints: ["/api/health", "/api/coach", "/api/review"],
+    endpoints: ["/api/health", "/api/auth", "/api/coach", "/api/review"],
   });
 });
 

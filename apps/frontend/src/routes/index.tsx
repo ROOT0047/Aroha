@@ -63,9 +63,16 @@ function Login() {
         });
         if (error) throw error;
         toast.success("Account created");
+        void navigate({ to: "/verify-email", search: { email } });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Handle backend-flagged unverified accounts
+        const meta = (data as any)?.user?.user_metadata;
+        if (meta?.requiresVerification) {
+          void navigate({ to: "/verify-email", search: { email } });
+          return;
+        }
         toast.success("Welcome back");
       }
     } catch (error) {
@@ -155,6 +162,16 @@ function Login() {
               placeholder="••••••••"
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
             />
+            {mode === "signin" && (
+              <div className="flex justify-end pt-0.5">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            )}
           </div>
 
           <Button type="submit" disabled={busy} className="h-12 w-full gap-2 rounded-2xl">
