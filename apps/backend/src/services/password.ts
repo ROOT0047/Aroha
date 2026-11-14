@@ -1,6 +1,6 @@
 import argon2 from "argon2";
 
-const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
+const ARGON2_OPTIONS: argon2.HashOptions = {
   type: argon2.argon2id,
   memoryCost: 65536, // 64 MiB
   timeCost: 3,
@@ -12,7 +12,7 @@ export const PASSWORD_POLICY = {
   requireUppercase: /[A-Z]/,
   requireLowercase: /[a-z]/,
   requireNumber: /[0-9]/,
-  requireSpecial: /[!@#$%^&()\-_=+\[\]{};':"\\|,.<>\/?`~]/,
+  requireSpecial: /[!@#$%^&*()\-_=+[\]{};':"\\|,.<>/?`~]/,
 };
 
 export interface PasswordValidationResult {

@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { auditLogsTable } from "../../drizzle/schema";
+import { auditLogsTable } from "../db/schema";
 
 export async function logAuditEvent(params: {
   userId?: string | null;

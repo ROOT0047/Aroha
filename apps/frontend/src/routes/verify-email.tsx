@@ -1,10 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "input-otp";
 import { Loader2, MailCheck } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import mark from "@/assets/aroha-mark.png";
 import { Button } from "@/components/ui/button";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 export const Route = createFileRoute("/verify-email")({
   validateSearch: (search) => ({ email: (search.email as string) || "" }),
@@ -71,10 +71,12 @@ function VerifyEmail() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (data.attempts) {
+        if (data.attemptsRemaining !== undefined) {
+          setAttempts({ current: 5 - data.attemptsRemaining, max: 5 });
+        } else if (data.attempts) {
           setAttempts({ current: data.attempts.current, max: data.attempts.max });
         }
-        setError(data.message ?? "Verification failed. Please try again.");
+        setError(data.error ?? data.message ?? "Verification failed. Please try again.");
         setOtp("");
         return;
       }

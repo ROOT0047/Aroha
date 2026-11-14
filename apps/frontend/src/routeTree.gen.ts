@@ -17,6 +17,7 @@ import { Route as AscendRouteImport } from './routes/ascend'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as FocusRouteImport } from './routes/focus'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as HabitTrackerRouteImport } from './routes/habit-tracker'
 import { Route as HabitsRouteImport } from './routes/habits'
@@ -27,10 +28,12 @@ import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LevelRouteImport } from './routes/level'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RemindersRouteImport } from './routes/reminders'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SyncRouteImport } from './routes/sync'
 import { Route as TimeBlockingAppRouteImport } from './routes/time-blocking-app'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as ProfileEditRouteImport } from './routes/profile.edit'
 
@@ -72,6 +75,11 @@ const FeaturesRoute = FeaturesRouteImport.update({
 const FocusRoute = FocusRouteImport.update({
   id: '/focus',
   path: '/focus',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GoalsRoute = GoalsRouteImport.update({
@@ -124,6 +132,11 @@ const RemindersRoute = RemindersRouteImport.update({
   path: '/reminders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScheduleRoute = ScheduleRouteImport.update({
   id: '/schedule',
   path: '/schedule',
@@ -142,6 +155,11 @@ const SyncRoute = SyncRouteImport.update({
 const TimeBlockingAppRoute = TimeBlockingAppRouteImport.update({
   id: '/time-blocking-app',
   path: '/time-blocking-app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileIndexRoute = ProfileIndexRouteImport.update({
@@ -164,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/coach': typeof CoachRoute
   '/features': typeof FeaturesRoute
   '/focus': typeof FocusRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/habit-tracker': typeof HabitTrackerRoute
   '/habits': typeof HabitsRoute
@@ -174,10 +193,12 @@ export interface FileRoutesByFullPath {
   '/level': typeof LevelRoute
   '/notifications': typeof NotificationsRoute
   '/reminders': typeof RemindersRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
   '/time-blocking-app': typeof TimeBlockingAppRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/profile/edit': typeof ProfileEditRoute
   '/profile/': typeof ProfileIndexRoute
 }
@@ -190,6 +211,7 @@ export interface FileRoutesByTo {
   '/coach': typeof CoachRoute
   '/features': typeof FeaturesRoute
   '/focus': typeof FocusRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/habit-tracker': typeof HabitTrackerRoute
   '/habits': typeof HabitsRoute
@@ -200,10 +222,12 @@ export interface FileRoutesByTo {
   '/level': typeof LevelRoute
   '/notifications': typeof NotificationsRoute
   '/reminders': typeof RemindersRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
   '/time-blocking-app': typeof TimeBlockingAppRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/profile/edit': typeof ProfileEditRoute
   '/profile': typeof ProfileIndexRoute
 }
@@ -217,6 +241,7 @@ export interface FileRoutesById {
   '/coach': typeof CoachRoute
   '/features': typeof FeaturesRoute
   '/focus': typeof FocusRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/goals': typeof GoalsRoute
   '/habit-tracker': typeof HabitTrackerRoute
   '/habits': typeof HabitsRoute
@@ -227,10 +252,12 @@ export interface FileRoutesById {
   '/level': typeof LevelRoute
   '/notifications': typeof NotificationsRoute
   '/reminders': typeof RemindersRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/sync': typeof SyncRoute
   '/time-blocking-app': typeof TimeBlockingAppRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/profile/edit': typeof ProfileEditRoute
   '/profile/': typeof ProfileIndexRoute
 }
@@ -245,6 +272,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/features'
     | '/focus'
+    | '/forgot-password'
     | '/goals'
     | '/habit-tracker'
     | '/habits'
@@ -255,10 +283,12 @@ export interface FileRouteTypes {
     | '/level'
     | '/notifications'
     | '/reminders'
+    | '/reset-password'
     | '/schedule'
     | '/settings'
     | '/sync'
     | '/time-blocking-app'
+    | '/verify-email'
     | '/profile/edit'
     | '/profile/'
   fileRoutesByTo: FileRoutesByTo
@@ -271,6 +301,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/features'
     | '/focus'
+    | '/forgot-password'
     | '/goals'
     | '/habit-tracker'
     | '/habits'
@@ -281,10 +312,12 @@ export interface FileRouteTypes {
     | '/level'
     | '/notifications'
     | '/reminders'
+    | '/reset-password'
     | '/schedule'
     | '/settings'
     | '/sync'
     | '/time-blocking-app'
+    | '/verify-email'
     | '/profile/edit'
     | '/profile'
   id:
@@ -297,6 +330,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/features'
     | '/focus'
+    | '/forgot-password'
     | '/goals'
     | '/habit-tracker'
     | '/habits'
@@ -307,10 +341,12 @@ export interface FileRouteTypes {
     | '/level'
     | '/notifications'
     | '/reminders'
+    | '/reset-password'
     | '/schedule'
     | '/settings'
     | '/sync'
     | '/time-blocking-app'
+    | '/verify-email'
     | '/profile/edit'
     | '/profile/'
   fileRoutesById: FileRoutesById
@@ -324,6 +360,7 @@ export interface RootRouteChildren {
   CoachRoute: typeof CoachRoute
   FeaturesRoute: typeof FeaturesRoute
   FocusRoute: typeof FocusRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   GoalsRoute: typeof GoalsRoute
   HabitTrackerRoute: typeof HabitTrackerRoute
   HabitsRoute: typeof HabitsRoute
@@ -334,10 +371,12 @@ export interface RootRouteChildren {
   LevelRoute: typeof LevelRoute
   NotificationsRoute: typeof NotificationsRoute
   RemindersRoute: typeof RemindersRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ScheduleRoute: typeof ScheduleRoute
   SettingsRoute: typeof SettingsRoute
   SyncRoute: typeof SyncRoute
   TimeBlockingAppRoute: typeof TimeBlockingAppRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   ProfileEditRoute: typeof ProfileEditRoute
   ProfileIndexRoute: typeof ProfileIndexRoute
 }
@@ -398,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/focus'
       fullPath: '/focus'
       preLoaderRoute: typeof FocusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/goals': {
@@ -470,6 +516,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/schedule': {
       id: '/schedule'
       path: '/schedule'
@@ -498,6 +551,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimeBlockingAppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile/': {
       id: '/profile/'
       path: '/profile'
@@ -524,6 +584,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoachRoute: CoachRoute,
   FeaturesRoute: FeaturesRoute,
   FocusRoute: FocusRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   GoalsRoute: GoalsRoute,
   HabitTrackerRoute: HabitTrackerRoute,
   HabitsRoute: HabitsRoute,
@@ -534,10 +595,12 @@ const rootRouteChildren: RootRouteChildren = {
   LevelRoute: LevelRoute,
   NotificationsRoute: NotificationsRoute,
   RemindersRoute: RemindersRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ScheduleRoute: ScheduleRoute,
   SettingsRoute: SettingsRoute,
   SyncRoute: SyncRoute,
   TimeBlockingAppRoute: TimeBlockingAppRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   ProfileEditRoute: ProfileEditRoute,
   ProfileIndexRoute: ProfileIndexRoute,
 }

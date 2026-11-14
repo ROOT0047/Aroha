@@ -112,7 +112,7 @@ function ResetPassword() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.message ?? "Failed to reset password. The link may have expired.");
+        setError(data.error ?? data.message ?? "Failed to reset password. The link may have expired.");
         return;
       }
       toast.success("Password changed!");

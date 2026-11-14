@@ -51,29 +51,46 @@ function Login() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
+    const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { display_name: displayName || email.split("@")[0] },
-          },
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            displayName: displayName || email.split("@")[0],
+          }),
         });
-        if (error) throw error;
-        toast.success("Account created");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const detailMsg = Array.isArray(data.details) ? data.details.join(". ") : null;
+          throw new Error(detailMsg || data.error || data.message || "Registration failed");
+        }
+        toast.success("Verification code sent! Check your inbox.");
         void navigate({ to: "/verify-email", search: { email } });
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        // Handle backend-flagged unverified accounts
-        const meta = (data as any)?.user?.user_metadata;
-        if (meta?.requiresVerification) {
-          void navigate({ to: "/verify-email", search: { email } });
-          return;
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (data.requiresVerification) {
+            toast.error(data.error || "Please verify your email before logging in.");
+            void navigate({ to: "/verify-email", search: { email } });
+            return;
+          }
+          throw new Error(data.error || data.message || "Sign in failed");
+        }
+        if (data.accessToken) {
+          localStorage.setItem("aroha_token", data.accessToken);
         }
         toast.success("Welcome back");
+        void navigate({ to: "/home", replace: true });
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Something went wrong");
@@ -156,7 +173,7 @@ function Login() {
               id="password"
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
