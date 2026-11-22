@@ -26,11 +26,12 @@ const fallbackAuth: AuthState = {
   profile: null,
   avatarSrc: null,
   loading: true,
-  refreshProfile: async () => {},
-  updatePreference: async () => {},
+  refreshProfile: async () => { },
+  updatePreference: async () => { },
   signOut: async () => {
     await supabase.auth.signOut();
   },
+  signInWithGoogle: async () => { },
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -98,6 +99,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAvatarSrc(null);
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    const clientId =
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      "31361964168-7melvbf8mc0bfo1ovaol2jq2c2kuf341.apps.googleusercontent.com";
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        queryParams: clientId ? { client_id: clientId } : undefined,
+      },
+    });
+    if (error) throw error;
+  }, []);
+
   const updatePreference = useCallback(
     async (key: PreferenceKey, value: boolean) => {
       if (!userId) return;
@@ -125,8 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       updatePreference,
       signOut,
+      signInWithGoogle,
     }),
-    [session, profile, avatarSrc, loading, refreshProfile, updatePreference, signOut],
+    [session, profile, avatarSrc, loading, refreshProfile, updatePreference, signOut, signInWithGoogle],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -33,6 +33,7 @@ export type AuthState = {
   refreshProfile: () => Promise<void>;
   updatePreference: (key: PreferenceKey, value: boolean) => Promise<void>;
   signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
 };
 
 /**
