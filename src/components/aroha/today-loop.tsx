@@ -2,18 +2,20 @@ import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Circle } from "lucide-react";
 import { useAroha } from "@/context/aroha";
 import { cn } from "@/lib/utils";
+import { useDailyReviews } from "./daily-command";
 
 /** The AROHA loop: Goal → Plan → Mission → Focus → Habit → Journal → Review → Level Up. */
 export function TodayLoop() {
   const { goalsCount, schedule, focusSessionsToday, habits, journaledToday, disciplineScore } = useAroha();
+  const { data: reviews } = useDailyReviews();
   const steps = [
     { label: "Goal", to: "/goals", done: goalsCount > 0 },
     { label: "Plan", to: "/schedule", done: schedule.length > 0 },
-    { label: "Mission", to: "/schedule", done: schedule.some((b) => b.completed) },
+    { label: "Mission", to: "/home", done: reviews?.morning?.missions.some((m) => m.done) ?? false },
     { label: "Focus", to: "/focus", done: focusSessionsToday > 0 },
     { label: "Habit", to: "/habits", done: habits.some((h) => h.completedToday) },
     { label: "Journal", to: "/journal", done: journaledToday },
-    { label: "Review", to: "/analytics", done: disciplineScore >= 50 },
+    { label: "Review", to: "/home", done: !!reviews?.evening },
     { label: "Level Up", to: "/level", done: disciplineScore >= 85 },
   ] as const;
   const doneCount = steps.filter((s) => s.done).length;

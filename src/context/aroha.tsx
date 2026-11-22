@@ -4,6 +4,8 @@ import {
   useContext,
   useMemo,
   useState,
+  useRef,
+  useEffect,
   type ReactNode,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
 import { totalXp, type XpInput } from "@/lib/xp";
+import { isScheduleDate, scheduleDates, scheduleTime } from "@/lib/schedule-dates";
 
 const notifyError = (e: unknown) =>
   toast.error(e instanceof Error ? e.message : "Something went wrong — please try again");
@@ -180,15 +183,17 @@ type ArohaState = {
   addBlock: (
     block: Omit<ScheduleBlock, "id" | "completed" | "durationLabel">,
     options?: { weekdays?: number[]; weeks?: number; date?: string; days?: number },
-  ) => void;
+  ) => Promise<void>;
+  addBlocks: (blocks: Omit<ScheduleBlock, "id" | "completed" | "durationLabel">[]) => Promise<void>;
+  scheduleSaving: boolean;
   updateBlock: (
     id: string,
     patch: Partial<
       Pick<ScheduleBlock, "title" | "description" | "startTime" | "endTime" | "priority" | "color">
     > & { date?: string },
-  ) => void;
+  ) => Promise<void>;
   deleteBlock: (id: string) => void;
-  deleteBlocks: (ids: string[]) => void;
+  deleteBlocks: (ids: string[]) => Promise<void>;
   weekPlan: WeekDayPlan[];
   toggleHabit: (id: string) => void;
   addHabit: (habit: Pick<Habit, "title" | "cadence" | "goal" | "unit">) => void;
@@ -196,7 +201,7 @@ type ArohaState = {
   addJournal: (entry: Pick<JournalEntry, "title" | "mood" | "content">) => void;
   addCoachMessage: (message: CoachMessage) => void;
   refreshCoach: () => Promise<void>;
-  logFocus: (minutes: number) => void;
+  logFocus: (minutes: number) => Promise<void>;
   addWater: (ml: number) => void;
   setSleep: (hours: number) => void;
   focusSessionsToday: number;
@@ -217,7 +222,12 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
 
   const rangeStart = useMemo(() => isoDate(new Date(Date.now() - 90 * DAY)), []);
   const enabled = !!userId;
-  const todayKey = todayISO();
+  const [todayKey, setTodayKey] = useState(todayISO);
+  useEffect(() => {
+    const timer = setInterval(() => setTodayKey(todayISO()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const healthQueue = useRef<Promise<void>>(Promise.resolve());
 
   const dailyLogsQuery = useQuery({
     queryKey: ["daily-logs", userId, rangeStart],
@@ -350,10 +360,10 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("coach_messages")
         .select("id, role, content")
-        .order("created_at")
+        .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
-      return (data ?? []).map((m) => ({
+      return (data ?? []).reverse().map((m) => ({
         id: m.id,
         role: m.role === "user" ? "user" : "coach",
         content: m.content,
@@ -561,36 +571,30 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
       block: Omit<ScheduleBlock, "id" | "completed" | "durationLabel">;
       options?: { weekdays?: number[]; weeks?: number; date?: string; days?: number };
     }) => {
-      if (!userId) return;
-      const baseDate =
-        options?.date && /^\d{4}-\d{2}-\d{2}$/.test(options.date) ? options.date : selectedDate;
-      const weekdays = options?.weekdays?.length ? options.weekdays : null;
-      const weeks = Math.max(1, Math.min(8, options?.weeks ?? 1));
-      const days = Math.max(1, Math.min(30, options?.days ?? 1));
-      const dates: string[] = [];
-      if (weekdays) {
-        const base = startOfWeekISO(new Date(`${baseDate}T00:00:00`));
-        for (let w = 0; w < weeks; w++) {
-          for (const wd of weekdays) dates.push(shiftISO(base, w * 7 + wd));
-        }
-      } else {
-        for (let i = 0; i < days; i++) dates.push(shiftISO(baseDate, i));
-      }
-      const today = todayISO();
-      const rows = Array.from(new Set(dates))
-        .filter((d) => d >= today || d === baseDate)
-        .map((block_date) => ({
-          user_id: userId,
-          block_date,
-          title: block.title,
-          description: block.description,
-          start_time: block.startTime,
-          end_time: block.endTime,
-          priority: block.priority,
-          color: block.color,
-        }));
-      if (!rows.length) return;
+      if (!userId) throw new Error("Sign in to save your schedule");
+      if (!block.title.trim() || !scheduleTime.test(block.startTime) || !scheduleTime.test(block.endTime) || block.startTime >= block.endTime) throw new Error("Enter a title and valid start/end times");
+      const baseDate = options?.date ?? selectedDate;
+      const dates = scheduleDates(baseDate, options);
+      if (!dates.length) throw new Error("No dates match this selection");
+      const rows = dates.map((block_date) => ({
+        user_id: userId, block_date, title: block.title.trim(), description: block.description,
+        start_time: block.startTime, end_time: block.endTime, priority: block.priority, color: block.color,
+      }));
       const { error } = await supabase.from("time_blocks").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: invalidateBlocks,
+    onError: notifyError,
+  });
+
+  const addBlocksMutation = useMutation({
+    mutationFn: async (blocks: Omit<ScheduleBlock, "id" | "completed" | "durationLabel">[]) => {
+      if (!userId) throw new Error("Sign in to save your schedule");
+      if (!blocks.length) throw new Error("This template has no blocks");
+      const { error } = await supabase.from("time_blocks").insert(blocks.map((block) => ({
+        user_id: userId, block_date: selectedDate, title: block.title, description: block.description,
+        start_time: block.startTime, end_time: block.endTime, priority: block.priority, color: block.color,
+      })));
       if (error) throw error;
     },
     onSuccess: invalidateBlocks,
@@ -614,7 +618,10 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
       if (patch.endTime !== undefined) row.end_time = patch.endTime;
       if (patch.priority !== undefined) row.priority = patch.priority;
       if (patch.color !== undefined) row.color = patch.color;
-      if (patch.date && /^\d{4}-\d{2}-\d{2}$/.test(patch.date)) row.block_date = patch.date;
+      if (patch.date !== undefined) {
+        if (!isScheduleDate(patch.date)) throw new Error("Pick a valid date");
+        row.block_date = patch.date;
+      }
       if (!Object.keys(row).length) return;
       const { error } = await supabase.from("time_blocks").update(row).eq("id", id);
       if (error) throw error;
@@ -719,7 +726,7 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
 
   const focusMutation = useMutation({
     mutationFn: async (minutes: number) => {
-      if (!userId) return;
+      if (!userId) throw new Error("Sign in to save focus time");
       const m = Math.max(1, Math.min(600, Math.round(minutes)));
       const { error } = await supabase
         .from("focus_sessions")
@@ -731,32 +738,34 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
   });
 
   const healthMutation = useMutation({
-    mutationFn: async (patch: { water_ml?: number; sleep_hours?: number }) => {
-      if (!userId) return;
-      const { error } = await supabase
-        .from("daily_logs")
-        .upsert(
-          { user_id: userId, log_date: todayISO(), water_ml: water, sleep_hours: sleep, ...patch },
-          { onConflict: "user_id,log_date" },
-        );
-      if (error) throw error;
+    mutationFn: async (change: { waterDelta?: number; sleep_hours?: number }) => {
+      if (!userId) throw new Error("Sign in to save your health log");
+      const date = todayISO();
+      const save = healthQueue.current.catch(() => {}).then(async () => {
+        const { data: current, error: readError } = await supabase.from("daily_logs")
+          .select("water_ml, sleep_hours").eq("user_id", userId).eq("log_date", date).maybeSingle();
+        if (readError) throw readError;
+        const patch = change.waterDelta !== undefined
+          ? { water_ml: Math.max(0, Math.min(8000, (current?.water_ml ?? 0) + change.waterDelta)) }
+          : { sleep_hours: change.sleep_hours ?? current?.sleep_hours ?? 0 };
+        const { error } = current
+          ? await supabase.from("daily_logs").update(patch).eq("user_id", userId).eq("log_date", date)
+          : await supabase.from("daily_logs").upsert({ user_id: userId, log_date: date, ...patch }, { onConflict: "user_id,log_date" });
+        if (error) throw error;
+      });
+      healthQueue.current = save;
+      await save;
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["daily-logs"] }),
     onError: notifyError,
   });
 
-  const logFocus = useCallback((minutes: number) => focusMutation.mutate(minutes), [focusMutation]);
-  const addWater = useCallback(
-    (ml: number) => healthMutation.mutate({ water_ml: Math.max(0, Math.min(8000, water + ml)) }),
-    [healthMutation, water],
-  );
-  const setSleep = useCallback(
-    (hours: number) => {
-      const h = Math.max(0, Math.min(16, Math.round(hours * 4) / 4));
-      healthMutation.mutate({ sleep_hours: h }, { onSuccess: () => toast.success("Sleep saved") });
-    },
-    [healthMutation],
-  );
+  const logFocus = useCallback((minutes: number) => focusMutation.mutateAsync(minutes), [focusMutation.mutateAsync]);
+  const addWater = useCallback((ml: number) => healthMutation.mutate({ waterDelta: ml }), [healthMutation.mutate]);
+  const setSleep = useCallback((hours: number) => {
+    const h = Math.max(0, Math.min(16, Math.round(hours * 4) / 4));
+    healthMutation.mutate({ sleep_hours: h }, { onSuccess: () => toast.success("Sleep saved") });
+  }, [healthMutation.mutate]);
 
   const weekPlan = useMemo<WeekDayPlan[]>(() => {
     const base = startOfWeekISO(new Date(`${selectedDate}T00:00:00`));
@@ -802,12 +811,12 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
       heatmap,
       toggleBlock: (id) => toggleBlockMutation.mutate(id),
       addBlock: (b, options) =>
-        addBlockMutation.mutate(options ? { block: b, options } : { block: b }),
-      updateBlock: (id, patch) => updateBlockMutation.mutate({ id, patch }),
+        addBlockMutation.mutateAsync(options ? { block: b, options } : { block: b }),
+      addBlocks: (blocks) => addBlocksMutation.mutateAsync(blocks),
+      scheduleSaving: addBlockMutation.isPending || updateBlockMutation.isPending || deleteBlockMutation.isPending || addBlocksMutation.isPending,
+      updateBlock: (id, patch) => updateBlockMutation.mutateAsync({ id, patch }),
       deleteBlock: (id) => deleteBlockMutation.mutate([id]),
-      deleteBlocks: (ids) => {
-        if (ids.length) deleteBlockMutation.mutate(ids);
-      },
+      deleteBlocks: (ids) => ids.length ? deleteBlockMutation.mutateAsync(ids) : Promise.resolve(),
       toggleHabit: (id) => toggleHabitMutation.mutate(id),
       addHabit: (h) => addHabitMutation.mutate(h),
       deleteHabit: (id) => deleteHabitMutation.mutate(id),
@@ -841,6 +850,7 @@ export function ArohaProvider({ children }: { children: ReactNode }) {
       heatmap,
       toggleBlockMutation,
       addBlockMutation,
+      addBlocksMutation,
       updateBlockMutation,
       deleteBlockMutation,
       toggleHabitMutation,

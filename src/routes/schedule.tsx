@@ -22,6 +22,7 @@ import {
 import { isoDate, useAroha } from "@/context/aroha";
 import { scheduleTemplates, type ScheduleTemplate, type TemplateBlock } from "@/data/templates";
 import { cn } from "@/lib/utils";
+import { isScheduleDate, scheduleTime } from "@/lib/schedule-dates";
 
 type ScheduleSearch = { date?: string; block?: string };
 
@@ -61,6 +62,8 @@ function SchedulePage() {
     schedule,
     toggleBlock,
     addBlock,
+    addBlocks,
+    scheduleSaving,
     updateBlock,
     deleteBlock,
     deleteBlocks,
@@ -96,8 +99,8 @@ function SchedulePage() {
     useCustomTemplates();
 
   useEffect(() => {
-    if (open) setBlockDate(selectedDate);
-  }, [open, selectedDate]);
+    if (open && !editingBlockId) setBlockDate(selectedDate);
+  }, [open, selectedDate, editingBlockId]);
 
   useEffect(() => {
     setSelected(new Set());
@@ -115,7 +118,7 @@ function SchedulePage() {
 
   const selectedLabel = useMemo(() => {
     const [y, m, d] = selectedDate.split("-").map(Number);
-    return new Date(y!, m! - 1, d!);
+    return new Date(`${selectedDate}T00:00:00`);
   }, [selectedDate]);
 
   const current = schedule.find((b) => !b.completed);
@@ -123,7 +126,7 @@ function SchedulePage() {
 
   // Deep link from a notification tap: jump to the right day…
   useEffect(() => {
-    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && dateParam !== selectedDate) {
+    if (dateParam && isScheduleDate(dateParam) && dateParam !== selectedDate) {
       setSelectedDate(dateParam);
     }
   }, [dateParam, selectedDate, setSelectedDate]);
@@ -162,13 +165,15 @@ function SchedulePage() {
     setSelected(new Set());
   }
 
-  function bulkDelete() {
+  async function bulkDelete() {
     const ids = schedule.filter((b) => selected.has(b.id)).map((b) => b.id);
     if (!ids.length) return;
     if (!confirm(`Delete ${ids.length} block${ids.length > 1 ? "s" : ""}?`)) return;
-    deleteBlocks(ids);
+    try {
+    await deleteBlocks(ids);
     toast.success(`Deleted ${ids.length} block${ids.length > 1 ? "s" : ""}`);
     exitSelect();
+    } catch { /* Selection stays available to retry. */ }
   }
 
   function openEdit(id: string) {
@@ -185,21 +190,23 @@ function SchedulePage() {
     setOpen(true);
   }
 
-  function submit() {
+  async function submit() {
+    if (scheduleSaving) return;
     if (!title.trim()) {
       toast.error("Give the block a name");
       return;
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(blockDate)) {
+    if (!isScheduleDate(blockDate)) {
       toast.error("Pick a date");
       return;
     }
-    if (start >= end) {
+    if (!scheduleTime.test(start) || !scheduleTime.test(end) || start >= end) {
       toast.error("End time must be after start time");
       return;
     }
+    try {
     if (editingBlockId) {
-      updateBlock(editingBlockId, {
+      await updateBlock(editingBlockId, {
         title: title.trim(),
         startTime: start,
         endTime: end,
@@ -208,7 +215,7 @@ function SchedulePage() {
       toast.success("Block updated");
       if (blockDate !== selectedDate) setSelectedDate(blockDate);
     } else {
-      addBlock(
+      await addBlock(
         {
           title: title.trim(),
           description: "Added from the planner",
@@ -241,23 +248,16 @@ function SchedulePage() {
     setDays(1);
     setEditingBlockId(null);
     setOpen(false);
+    } catch { /* Preserve the form for retry. */ }
   }
 
-  function applyTemplate(template: ScheduleTemplate) {
-    for (const b of template.blocks) {
-      addBlock({
-        title: b.title,
-        description: b.description,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        priority: b.priority,
-        color: b.color,
-      });
-    }
-    toast.success(
-      `${template.name} template added — ${template.blocks.length} blocks planned for this day`,
-    );
-    setTemplatesOpen(false);
+  async function applyTemplate(template: ScheduleTemplate) {
+    if (scheduleSaving) return;
+    try {
+      await addBlocks(template.blocks);
+      toast.success(`${template.name} template added — ${template.blocks.length} blocks planned for this day`);
+      setTemplatesOpen(false);
+    } catch { /* Keep templates open for retry. */ }
   }
 
   return (
@@ -275,7 +275,7 @@ function SchedulePage() {
         {week.map((d) => (
           <button
             key={d.iso}
-            onClick={() => setSelectedDate(d.iso)}
+            onClick={() => { clearFocus(); setSelectedDate(d.iso); }}
             className={cn(
               "flex min-w-[3.1rem] flex-col items-center gap-1 rounded-2xl border px-2 py-2 transition-colors",
               selectedDate === d.iso
@@ -326,6 +326,7 @@ function SchedulePage() {
                 selected={selectedLabel}
                 onSelect={(d) => {
                   if (!d) return;
+                  clearFocus();
                   setSelectedDate(isoDate(d));
                   setCalendarOpen(false);
                 }}
@@ -372,8 +373,8 @@ function SchedulePage() {
               <Button
                 variant="destructive"
                 size="sm"
-                disabled={!selected.size}
-                onClick={bulkDelete}
+                disabled={!selected.size || scheduleSaving}
+                onClick={() => void bulkDelete()}
               >
                 <Trash2 className="size-3.5" /> Delete {selected.size || ""}
               </Button>
@@ -469,7 +470,7 @@ function SchedulePage() {
       </ol>
 
       <Sheet open={Boolean(focusedBlock)} onOpenChange={(v) => (v ? null : clearFocus())}>
-        <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl border-border bg-surface">
+        <SheetContent side="bottom" className="mx-auto max-h-[90dvh] max-w-md overflow-y-auto rounded-t-3xl border-border bg-surface">
           <SheetHeader>
             <SheetTitle>{focusedBlock?.title ?? "Block"}</SheetTitle>
           </SheetHeader>
@@ -508,6 +509,12 @@ function SchedulePage() {
             >
               {focusedBlock?.completed ? "Mark incomplete" : "Mark complete"}
             </Button>
+            <Button variant="outline" onClick={() => {
+              if (!focusedBlock) return;
+              const id = focusedBlock.id;
+              clearFocus();
+              openEdit(id);
+            }} className="w-full"><Pencil className="size-4" /> Edit block</Button>
             <Button variant="outline" onClick={clearFocus} className="w-full">
               Close
             </Button>
@@ -516,7 +523,7 @@ function SchedulePage() {
       </Sheet>
 
       <Sheet open={templatesOpen} onOpenChange={setTemplatesOpen}>
-        <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl border-border bg-surface">
+        <SheetContent side="bottom" className="mx-auto max-h-[90dvh] max-w-md overflow-y-auto rounded-t-3xl border-border bg-surface">
           <SheetHeader>
             <SheetTitle>Schedule templates</SheetTitle>
           </SheetHeader>
@@ -567,7 +574,8 @@ function SchedulePage() {
               <div key={t.id} className="card-surface flex items-center gap-2 px-3 py-2.5">
                 <button
                   type="button"
-                  onClick={() => applyTemplate(t)}
+                  disabled={scheduleSaving}
+                  onClick={() => void applyTemplate(t)}
                   className="min-w-0 flex-1 text-left"
                 >
                   <p className="truncate text-sm text-foreground">{t.name}</p>
@@ -605,7 +613,8 @@ function SchedulePage() {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => applyTemplate(t)}
+                disabled={scheduleSaving}
+                  onClick={() => void applyTemplate(t)}
                 className="card-surface flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:border-primary"
               >
                 <div className="min-w-0">
@@ -626,16 +635,16 @@ function SchedulePage() {
         </SheetContent>
       </Sheet>
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={open} onOpenChange={(value) => { if (scheduleSaving) return; setOpen(value); if (!value) setEditingBlockId(null); }}>
         <SheetTrigger
           aria-label="Add time block"
           className="fixed bottom-24 right-5 z-30 grid size-13 md:right-[calc(50%-11rem)] place-items-center rounded-full bg-primary text-primary-foreground shadow-[var(--glow-primary)] transition-transform active:scale-95"
         >
           <Plus className="size-5.5" strokeWidth={2} />
         </SheetTrigger>
-        <SheetContent side="bottom" className="mx-auto max-w-md rounded-t-3xl border-border bg-surface">
+        <SheetContent side="bottom" className="mx-auto max-h-[90dvh] max-w-md overflow-y-auto rounded-t-3xl border-border bg-surface">
           <SheetHeader>
-            <SheetTitle>New time block</SheetTitle>
+            <SheetTitle>{editingBlockId ? "Edit time block" : "New time block"}</SheetTitle>
           </SheetHeader>
           <div className="space-y-4 px-4">
             <div className="space-y-1.5">
@@ -678,7 +687,7 @@ function SchedulePage() {
               </div>
             </div>
 
-            <div className="space-y-2">
+            {!editingBlockId && <div className="space-y-2">
               <Label>Repeat weekly on</Label>
               <div className="flex gap-1.5">
                 {week.map((d, i) => {
@@ -726,11 +735,15 @@ function SchedulePage() {
                   Leave empty to add this block to the selected day only.
                 </p>
               )}
-            </div>
+            </div>}
+            {!editingBlockId && !repeatDays.length && <div className="space-y-1.5">
+              <Label htmlFor="block-days">Consecutive days</Label>
+              <Input id="block-days" type="number" min={1} max={30} value={days} onChange={(e) => setDays(Math.max(1, Math.min(30, Number(e.target.value) || 1)))} />
+            </div>}
           </div>
-          <SheetFooter>
-            <Button onClick={submit} className="w-full">
-              Add block
+          <SheetFooter className="mt-4">
+            <Button disabled={scheduleSaving} onClick={() => void submit()} className="w-full">
+              {scheduleSaving ? "Saving…" : editingBlockId ? "Save changes" : "Add block"}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -739,8 +752,9 @@ function SchedulePage() {
         open={Boolean(editing)}
         onOpenChange={(v) => (v ? null : setEditing(null))}
         initial={editing}
-        onSave={(t) => {
-          saveTemplate.mutate(t, { onSuccess: () => toast.success(`Template "${t.name}" saved`) });
+        onSave={async (t) => {
+          await saveTemplate.mutateAsync(t);
+          toast.success(`Template "${t.name}" saved`);
         }}
       />
     </AppShell>

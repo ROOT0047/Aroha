@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/aroha/app-shell";
 import { PageHeading, StatTile } from "@/components/aroha/primitives";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { useAroha } from "@/context/aroha";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,8 @@ function FocusPage() {
   const [running, setRunning] = useState(false);
   const deepWork = profile?.focus_mode_enabled ?? false;
   const logged = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   async function setDeepWork(value: boolean) {
     try {
@@ -53,22 +56,36 @@ function FocusPage() {
 
   useEffect(() => {
     if (!running) return;
+    const started = Date.now();
+    const initialElapsed = elapsed;
+    const initialRemaining = remaining;
     const id = setInterval(() => {
+      const seconds = Math.floor((Date.now() - started) / 1000);
       if (mode === "stopwatch") {
-        setElapsed((e) => e + 1);
+        setElapsed(initialElapsed + seconds);
       } else {
-        setRemaining((r) => Math.max(0, r - 1));
+        setRemaining(Math.max(0, initialRemaining - seconds));
       }
     }, 1000);
     return () => clearInterval(id);
   }, [running, mode]);
 
+  async function saveSession() {
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      await logFocus(preset.minutes);
+      toast.success("Focus complete — session saved");
+    } catch { setSaveFailed(true); }
+    finally { setSaving(false); }
+  }
+
   useEffect(() => {
     if (mode === "pomodoro" && remaining === 0 && running && !logged.current) {
       logged.current = true;
       setRunning(false);
-      if (preset.key === "focus") logFocus(preset.minutes);
-      toast.success(`${preset.label} complete`);
+      if (preset.key === "focus") void saveSession();
+      else toast.success(`${preset.label} complete`);
     }
   }, [remaining, running, mode, preset, logFocus]);
 
@@ -82,6 +99,7 @@ function FocusPage() {
   function reset() {
     setRunning(false);
     logged.current = false;
+    setSaveFailed(false);
     if (mode === "stopwatch") setElapsed(0);
     else setRemaining(preset.minutes * 60);
   }
@@ -160,13 +178,17 @@ function FocusPage() {
           <RotateCcw className="size-4.5" strokeWidth={1.75} />
         </button>
         <button
-          onClick={() => setRunning((r2) => !r2)}
+          disabled={saving}
+          onClick={() => { if (mode === "pomodoro" && remaining === 0) reset(); setRunning((r2) => !r2); }}
           className="flex items-center gap-2 rounded-2xl bg-primary px-10 py-3.5 text-sm font-medium text-primary-foreground shadow-[var(--glow-primary)] transition-transform active:scale-[0.98]"
         >
           {running ? <Pause className="size-4.5" strokeWidth={2} /> : <Play className="size-4.5" strokeWidth={2} />}
           {running ? "Pause" : "Start"}
         </button>
       </div>
+
+      {saving && <p className="mt-3 text-center text-sm text-muted-foreground">Saving session…</p>}
+      {saveFailed && <Button variant="outline" className="mx-auto mt-3 flex" onClick={() => void saveSession()}>Retry saving session</Button>}
 
       {mode === "pomodoro" ? (
         <div className="mt-6 flex gap-2">

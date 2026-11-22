@@ -1,3 +1,6 @@
 - Keep application state and shared app UI in `src/context/aroha.tsx` and `src/components/aroha/`, using `ArohaProvider` and `useAroha`, so brand-specific imports remain consistent.
 - Serve the brand page at `/aroha` and retain `/ascend` only as a permanent compatibility redirect so old bookmarks keep working.
 - Keep legacy device-storage names only in `src/lib/brand-preferences.ts` for one-way migration; do not rename generated authentication storage, so sessions and notification deduplication remain intact.
+- Validate calendar dates and derive repeated dates through `src/lib/schedule-dates.ts` so specific-date and bulk scheduling share the same rules.
+- Expose awaited schedule mutations and insert template blocks in one batch so save confirmations only follow successful persistence.
+- Use the managed OAuth helper and server-only AI Gateway SDK calls so sign-in and AI work in both preview and published environments.

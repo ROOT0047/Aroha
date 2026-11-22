@@ -4,6 +4,9 @@ import { AppShell } from "@/components/aroha/app-shell";
 import { Meter, ScoreRing, SectionHeader, StatTile } from "@/components/aroha/primitives";
 import { useAroha } from "@/context/aroha";
 import { TodayLoop } from "@/components/aroha/today-loop";
+import { DailyCommand } from "@/components/aroha/daily-command";
+import { useEffect } from "react";
+import { isoDate } from "@/context/aroha";
 import { useAuth } from "@/hooks/use-auth";
 import { healthStats, profile } from "@/data/mock";
 import { quoteForDate } from "@/data/quotes";
@@ -63,7 +66,9 @@ function HomePage() {
     loading,
     achievements,
     progression,
+    setSelectedDate,
   } = useAroha();
+  useEffect(() => { setSelectedDate(isoDate(new Date())); }, [setSelectedDate]);
   const { user, profile: account } = useAuth();
   const name = account?.display_name ?? user?.email?.split("@")[0] ?? profile.name;
 
@@ -116,6 +121,7 @@ function HomePage() {
       </section>
 
       <TodayLoop />
+      <DailyCommand />
 
       <section className="mt-4 grid grid-cols-4 gap-2">
         <StatTile label="Tasks" value={`${doneTasks}/${schedule.length}`} />

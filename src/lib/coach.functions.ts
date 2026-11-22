@@ -9,16 +9,13 @@ Reference the user's real data when it is provided. Give one concrete next actio
 export const askCoach = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ message: z.string().trim().min(1).max(1000) }).parse(input),
+    z.object({ message: z.string().trim().min(1).max(1000), date: z.string().optional() }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    await supabase
-      .from("coach_messages")
-      .insert({ user_id: userId, role: "user", content: data.message });
-
-    const today = new Date().toISOString().slice(0, 10);
+    const { isScheduleDate } = await import("./schedule-dates");
+    const today = data.date && isScheduleDate(data.date) ? data.date : new Date().toISOString().slice(0, 10);
     const [history, habits, logs, blocks] = await Promise.all([
       supabase
         .from("coach_messages")
@@ -41,53 +38,19 @@ export const askCoach = createServerFn({ method: "POST" })
       }.`,
     ].join(" ");
 
-    const [{ streamText }, { getAiApiKey, createAiProvider }] = await Promise.all([
-      import("ai"),
-      import("./ai-provider.server"),
+    for (const result of [history, habits, logs, blocks]) {
+      if (result.error) throw new Error("Could not load your daily data. Please try again.");
+    }
+    const { arohaText } = await import("./aroha-ai.server");
+    const conversation = (history.data ?? []).slice().reverse().map((message) =>
+      `${message.role === "user" ? "User" : "Coach"}: ${message.content}`,
+    ).join("\n");
+    const reply = await arohaText(`${SYSTEM}\n\nUser data: ${contextLine}`, `${conversation}\nUser: ${data.message}`);
+    const { error } = await supabase.from("coach_messages").insert([
+      { user_id: userId, role: "user", content: data.message },
+      { user_id: userId, role: "coach", content: reply },
     ]);
-
-    const key = getAiApiKey();
-    const provider = createAiProvider(key);
-    const priorMessages = (history.data ?? [])
-      .slice()
-      .reverse()
-      .map((m) => ({
-        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-        content: m.content,
-      }));
-
-    let streamError: unknown = null;
-    const result = streamText({
-      model: provider("gemini-2.5-flash"),
-      instructions: `${SYSTEM}\n\nUser data: ${contextLine}`,
-      messages: priorMessages,
-      onError: ({ error }) => {
-        streamError = error;
-        console.error("[coach] gateway stream error", error);
-      },
-    });
-
-    let reply = "";
-    try {
-      reply = (await result.text).trim();
-    } catch (error) {
-      throw new Error(
-        `coach failed: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)} | stream: ${
-          streamError instanceof Error ? streamError.message : String(streamError)
-        }`,
-      );
-    }
-    if (!reply) {
-      throw new Error(
-        `AROHA AI returned nothing: ${
-          streamError instanceof Error ? streamError.message : String(streamError)
-        }`,
-      );
-    }
-
-    await supabase
-      .from("coach_messages")
-      .insert({ user_id: userId, role: "coach", content: reply });
+    if (error) throw new Error("Your answer could not be saved. Please try again.");
 
     return { reply };
   });

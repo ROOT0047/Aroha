@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/aroha/app-shell";
 import { useAroha } from "@/context/aroha";
 import { askCoach } from "@/lib/coach.functions";
+import { localDate } from "@/components/aroha/daily-command";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/aroha-mark.png";
 
@@ -50,11 +51,13 @@ function CoachPage() {
     setInput("");
     setThinking(true);
     try {
-      await ask({ data: { message: text } });
+      await ask({ data: { message: text, date: localDate() } });
       await refreshCoach();
     } catch (error) {
       console.error(error);
-      toast.error("AROHA AI couldn't reply. Try again in a moment.");
+      setInput(text);
+      await refreshCoach();
+      toast.error(error instanceof Error ? error.message : "AROHA AI could not reply. Please try again.");
     } finally {
       setThinking(false);
       inputRef.current?.focus();

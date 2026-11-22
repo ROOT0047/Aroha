@@ -48,11 +48,11 @@ export const Route = createFileRoute("/")({
         content: "Sign in to AROHA, the personal evolution system for schedule, habits, focus, health and AI coaching.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:image", content: "/og-aroha.jpg" },
+      { property: "og:image", content: "https://aroha-os.lovable.app/og-aroha.jpg" },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "640" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "/og-aroha.jpg" },
+      { name: "twitter:image", content: "https://aroha-os.lovable.app/og-aroha.jpg" },
     ],
   }),
   component: Login,
@@ -71,60 +71,12 @@ function Login() {
     if (!loading && session) void navigate({ to: "/home", replace: true });
   }, [loading, session, navigate]);
 
-  useEffect(() => {
-    const clientId =
-      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-      "31361964168-7melvbf8mc0bfo1ovaol2jq2c2kuf341.apps.googleusercontent.com";
-    if (!clientId || typeof window === "undefined") return;
-
-    function initGsi() {
-      if (!window.google?.accounts?.id) return;
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: async (response) => {
-            if (!response.credential) return;
-            setBusy(true);
-            try {
-              const { error } = await supabase.auth.signInWithIdToken({
-                provider: "google",
-                token: response.credential,
-              });
-              if (error) throw error;
-              toast.success("Welcome back");
-            } catch (err: unknown) {
-              toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-            } finally {
-              setBusy(false);
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
-      } catch (err) {
-        console.warn("Failed to initialize Google Identity Services:", err);
-      }
-    }
-
-    if (!document.getElementById("google-gsi-client")) {
-      const script = document.createElement("script");
-      script.id = "google-gsi-client";
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.onload = initGsi;
-      document.head.appendChild(script);
-    } else {
-      initGsi();
-    }
-  }, []);
-
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -133,7 +85,7 @@ function Login() {
           },
         });
         if (error) throw error;
-        toast.success("Account created");
+        toast.success(data.session ? "Account created" : "Check your email to confirm your account, then sign in.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -148,26 +100,10 @@ function Login() {
 
   async function onGoogle() {
     setBusy(true);
-      try {
-        if (window.google?.accounts?.id) {
-          window.google.accounts.id.prompt(async (notification) => {
-            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-              try {
-                await signInWithGoogle();
-              } catch (err) {
-                setBusy(false);
-                toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-              }
-            }
-          });
-        } else {
-          await signInWithGoogle();
-        }
-      } catch (error) {
-        setBusy(false);
-        toast.error(error instanceof Error ? error.message : "Google sign-in failed");
-      }
-    }
+    try { await signInWithGoogle(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Google sign-in failed"); }
+    finally { setBusy(false); }
+  }
 
     return (
       <div className="relative min-h-screen overflow-hidden bg-background">

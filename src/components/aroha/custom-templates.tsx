@@ -8,11 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import type { ScheduleTemplate, TemplateBlock } from "@/data/templates";
+import { useAuth } from "@/hooks/use-auth";
+import { scheduleTime } from "@/lib/schedule-dates";
 
 export type CustomTemplate = ScheduleTemplate & { custom: true };
 
 const KEY = ["schedule-templates"];
-const TIME = /^\d{2}:\d{2}$/;
+const TIME = scheduleTime;
 
 function sanitizeBlocks(raw: unknown): TemplateBlock[] {
   if (!Array.isArray(raw)) return [];
@@ -26,15 +28,17 @@ function sanitizeBlocks(raw: unknown): TemplateBlock[] {
       priority: (["High", "Medium", "Low"].includes(String(b["priority"]))
         ? b["priority"]
         : "Medium") as TemplateBlock["priority"],
-      color: (typeof b["color"] === "string" ? b["color"] : "primary") as TemplateBlock["color"],
+      color: (["primary", "secondary", "success", "warning", "destructive"].includes(String(b["color"])) ? b["color"] : "primary") as TemplateBlock["color"],
     }))
-    .filter((b) => b.title && TIME.test(b.startTime) && TIME.test(b.endTime));
+    .filter((b) => b.title && TIME.test(b.startTime) && TIME.test(b.endTime) && b.startTime < b.endTime);
 }
 
 export function useCustomTemplates() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const query = useQuery({
-    queryKey: KEY,
+    queryKey: [...KEY, user?.id],
+    enabled: !!user?.id,
     queryFn: async (): Promise<CustomTemplate[]> => {
       const { data, error } = await supabase
         .from("schedule_templates")
@@ -95,11 +99,12 @@ export function TemplateEditorSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial: { id?: string; name: string; tagline: string; blocks: TemplateBlock[] } | null;
-  onSave: (t: { id?: string; name: string; tagline: string; blocks: TemplateBlock[] }) => void;
+  onSave: (t: { id?: string; name: string; tagline: string; blocks: TemplateBlock[] }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
   const [blocks, setBlocks] = useState<TemplateBlock[]>([blank()]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -112,7 +117,8 @@ export function TemplateEditorSheet({
     setBlocks((prev) => prev.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
   }
 
-  function submit() {
+  async function submit() {
+    if (saving) return;
     const clean = blocks
       .map((b) => ({ ...b, title: b.title.trim() }))
       .filter((b) => b.title);
@@ -124,21 +130,25 @@ export function TemplateEditorSheet({
       toast.error("Add at least one block with a title");
       return;
     }
-    if (clean.some((b) => b.startTime >= b.endTime)) {
+    if (clean.some((b) => !TIME.test(b.startTime) || !TIME.test(b.endTime) || b.startTime >= b.endTime)) {
       toast.error("Each block must end after it starts");
       return;
     }
-    onSave({
+    setSaving(true);
+    try {
+    await onSave({
       ...(initial?.id ? { id: initial.id } : {}),
       name: name.trim().slice(0, 60),
       tagline: tagline.trim().slice(0, 120),
       blocks: clean.sort((a, b) => a.startTime.localeCompare(b.startTime)),
     });
     onOpenChange(false);
+    } catch { /* Preserve edits on failure; the save mutation shows the error. */ }
+    finally { setSaving(false); }
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(value) => { if (!saving) onOpenChange(value); }}>
       <SheetContent
         side="bottom"
         className="mx-auto max-h-[90vh] max-w-md overflow-y-auto rounded-t-3xl border-border bg-surface"
@@ -206,8 +216,8 @@ export function TemplateEditorSheet({
           </div>
         </div>
         <SheetFooter>
-          <Button onClick={submit} className="w-full">
-            Save template
+          <Button disabled={saving} onClick={() => void submit()} className="w-full">
+            {saving ? "Saving…" : "Save template"}
           </Button>
         </SheetFooter>
       </SheetContent>

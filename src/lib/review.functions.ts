@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { isScheduleDate } from "./schedule-dates";
 
 export type Mission = { id: string; title: string; attribute: string; done: boolean };
 export type PlanBlock = { title: string; start: string; end: string; priority: string };
@@ -28,7 +29,7 @@ export const generateReview = createServerFn({ method: "POST" })
     z
       .object({
         kind: z.enum(["morning", "evening"]),
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        date: z.string().refine(isScheduleDate, "Pick a valid date"),
         now: z.string().regex(timeRe),
       })
       .parse(input),
@@ -103,28 +104,15 @@ Plan rules: blocks start after ${now}, must not overlap existing blocks, fit wea
  "plan": [],
  "insights": [3 short items: one win, one gap, one specific adjustment for tomorrow]}`;
 
-    const [{ streamText }, { getAiApiKey, createAiProvider }] = await Promise.all([
-      import("ai"),
-      import("./ai-provider.server"),
-    ]);
-    const key = getAiApiKey();
-    const provider = createAiProvider(key);
-    const result = streamText({
-      model: provider("gemini-2.5-flash"),
-      system:
-        "You are AROHA AI, an adaptive planner modelled on a calm, analytical strategist. No emoji, no flattery. Output valid json only.",
-      prompt: `${task}\n\nUser data (json context):\n${facts}`,
-    });
-
-    let text = "";
-    try {
-      text = await result.text;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      if (/402|credit/i.test(msg)) throw new Error("AI credits are used up. Add credits to keep using AROHA AI.");
-      if (/429|rate/i.test(msg)) throw new Error("AROHA AI is busy. Please try again in a minute.");
-      throw new Error("AROHA AI could not build your review. Please try again.");
+    for (const result of [blocks, habits, logs, goals, health, focus, journal, prev]) {
+      if (result.error) throw new Error("Could not load your daily data. Please try again.");
     }
+    const { arohaText } = await import("./aroha-ai.server");
+    const text = await arohaText(
+      "You are AROHA AI, an adaptive planner modelled on a calm, analytical strategist. No emoji, no flattery. Output valid JSON only.",
+      `${task}\n\nUser data (JSON context):\n${facts}`,
+      true,
+    );
     const parsed = extractJson(text);
 
     const missions: Mission[] = (Array.isArray(parsed.missions) ? parsed.missions : [])
@@ -144,14 +132,21 @@ Plan rules: blocks start after ${now}, must not overlap existing blocks, fit wea
         end: String(b.end ?? ""),
         priority: ["high", "medium", "low"].includes(String(b.priority)) ? String(b.priority) : "medium",
       }))
-      .filter((b: PlanBlock) => b.title && timeRe.test(b.start) && timeRe.test(b.end) && b.start < b.end);
+      .filter((b: PlanBlock) => b.title && timeRe.test(b.start) && timeRe.test(b.end) && b.start < b.end && b.start > now)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    const occupied = today.map((b) => ({ start: b.start_time.slice(0, 5), end: b.end_time.slice(0, 5) }));
+    const safePlan = plan.filter((b) => {
+      if (occupied.some((slot) => b.start < slot.end && b.end > slot.start)) return false;
+      occupied.push(b);
+      return true;
+    });
     const insights = (Array.isArray(parsed.insights) ? parsed.insights : []).slice(0, 4).map((s: unknown) => String(s).slice(0, 200));
     const summary = String(parsed.summary ?? "").slice(0, 800);
 
     const { data: saved, error } = await supabase
       .from("daily_reviews")
       .upsert(
-        { user_id: userId, review_date: date, kind, summary, missions, plan, insights, updated_at: new Date().toISOString() },
+        { user_id: userId, review_date: date, kind, summary, missions, plan: safePlan, insights, updated_at: new Date().toISOString() },
         { onConflict: "user_id,review_date,kind" },
       )
       .select()
